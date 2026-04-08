@@ -5,7 +5,7 @@
 #include <MNN/expr/Module.hpp>
 #include "MyModule.h"
 
-namespace DonNotKnowHowToNameIt
+namespace DonNotNowHowToNameIt
 {
 template <size_t D>
 std::array<int, D> make_filled_array(int value)
@@ -115,7 +115,7 @@ public:
         }
         else
         {
-            bias_ = createScalar(0, format, dtype);
+            bias_ = nullptr;//createScalar(0, format, dtype);
         }
     }
     
