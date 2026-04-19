@@ -114,6 +114,7 @@ public:
         for (int i = 0, n = mParameters.size(); i < n; i++)
         {
             auto param = mParameters[i];
+            std::string param_name = param->name();
             const std::string full_key = prefix + param->name();//std::cout << full_key << std::endl;
             
             if (loader.contains(full_key))
@@ -167,6 +168,7 @@ public:
                 }
                 
                 mappings_[i] = PAIR.second;
+                param->setName(param_name);
             }
             else
             {
@@ -185,6 +187,31 @@ public:
         {
             const std::string child_prefix = prefix + module->name() + ".";
             reinterpret_cast<MyModule*>(module.get())->load_from_safetensors(loader, child_prefix, shape_mode, dtype_policy, allow_missing_tensors);
+        }
+    }
+    
+    std::unordered_map<std::string, MNN::Express::VARP> get_parameters_recursive()
+    {
+        std::unordered_map<std::string, MNN::Express::VARP> map;
+        get_parameters_recursive(map, "");
+        return map;
+    }
+    
+    
+    virtual void get_parameters_recursive
+    (
+        std::unordered_map<std::string, MNN::Express::VARP>& map,
+        const std::string& prefix = ""
+    )
+    {
+        for (auto t : mParameters)
+        {
+            map[prefix + t->name()] = t;
+        }
+        for (auto m : mChildren)
+        {
+            const std::string child_prefix = prefix + m->name() + ".";
+            static_cast<MyModule*>(m.get())->get_parameters_recursive(map, child_prefix);
         }
     }
     

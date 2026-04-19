@@ -1,5 +1,5 @@
-#ifndef MYLDM_DIFFUSIONMODULES_MODEL
-#define MYLDM_DIFFUSIONMODULES_MODEL
+#ifndef MYLDM_DIFFUSIONMODULES_OPENAIMODEL
+#define MYLDM_DIFFUSIONMODULES_OPENAIMODEL
 
 #include <cmath>
 #include <MyModules.h>
@@ -131,6 +131,15 @@ struct GuessWhoIAm : public IDK::MyModule
             dtype_policy,
             allow_missing_tensors
         );
+    }
+    
+    virtual void get_parameters_recursive
+    (
+        std::unordered_map<std::string, MNN::Express::VARP>& map,
+        const std::string& prefix = ""
+    ) override
+    {
+        return module_->get_parameters_recursive(map, prefix);
     }
 };
 

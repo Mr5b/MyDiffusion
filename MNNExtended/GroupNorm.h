@@ -24,19 +24,26 @@ public:
         eps_(eps),
         affine_(affine)
     {
-        MY_ASSERT(num_channels % num_groups_ == 0, "num_channels must be divisible by num_groups");
+        MY_ASSERT
+        (
+            num_channels % num_groups_ == 0,
+            std::string("num_channels must be divisible by num_groups. num_channels: "
+            + std::to_string(num_channels)
+            + " num_groups_: "
+            + std::to_string(num_groups_)).c_str()
+        );
         
         if (affine)
         {
-            INTS shape;
-            if (format == Dimensionformat::NHWC)
+            INTS shape = {num_channels};
+            /*if (format == Dimensionformat::NHWC)
             {
                 shape = {num_channels};
             }
             else
             {
                 shape = {1, num_channels, 1, 1};
-            }
+            }*/
             weight_ = fillValue(1, shape, format, dtype);
             bias_ = fillValue(0, shape, format, dtype);
             register_parameter("weight", weight_);
@@ -101,14 +108,14 @@ public:
             ""
         );
         
-        weight_.fix(VARP::TRAINABLE);
-        bias_.fix(VARP::TRAINABLE);
+        /*weight_.fix(VARP::TRAINABLE);
+        bias_.fix(VARP::TRAINABLE);*/
             
-        VARP out = _BiasAdd((normalized_4d * weight_), bias_);
+        VARP out = _BiasAdd((normalized_4d * _Unsqueeze(weight_, {1, 2})), _Unsqueeze(bias_, {1, 2}));
         return {out};
     }
     
-    virtual void load_from_safetensors
+    /*virtual void load_from_safetensors
     (
         const SafetensorLoader& loader,
         const std::string& prefix = "",
@@ -126,7 +133,7 @@ public:
             dtype_policy,
             allow_missing_tensors
         );
-    }
+    }*/
     
     int num_groups_;
     bool affine_;

@@ -27,8 +27,8 @@ public:
 
     virtual std::vector<VARP> onForward(const std::vector<VARP>& inputs) override
     {
-        weight_.fix(VARP::TRAINABLE);
-        if (bias_.get()) bias_.fix(VARP::TRAINABLE);
+        /*weight_.fix(VARP::TRAINABLE);
+        if (bias_.get()) bias_.fix(VARP::TRAINABLE);*/
     
         VARP x = inputs[0];
         auto input_info = x->getInfo();
@@ -37,7 +37,17 @@ public:
         INTS flat;
         int in_features = weight_shape[1];
         
-        MY_ASSERT(input_shape.back() == in_features, "");
+        MY_ASSERT
+        (
+            input_shape.back() == in_features,
+            std::string
+            (
+                "input_shape.back(): "
+                 + std::to_string(input_shape.back())
+                 + " in_features: "
+                 + std::to_string(in_features)
+            ).c_str()
+        );
         
         int batch_size = 1;
         for (int i = 0, n = input_shape.size() - 1; i < n; i++)

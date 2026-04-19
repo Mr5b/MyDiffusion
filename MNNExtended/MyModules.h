@@ -8,5 +8,6 @@
 #include "ModuleList.h"
 #include "Sequential.h"
 #include "GELU.h"
+#include "SiLU.h"
 #include "Identity.h"
 #endif

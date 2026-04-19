@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <functional>
 #include <atomic>
+#include <cstdio>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -37,6 +38,22 @@ public:
         (
             new SharedFileHandle(file_path, writable, create_if_not_exists)
         );
+    }
+    
+    static std::shared_ptr<SharedFileHandle> create
+    (
+        size_t size,
+        const std::string& file_path
+    )
+    {
+        
+        auto handle =
+            std::shared_ptr<SharedFileHandle>
+            (
+                new SharedFileHandle(file_path, true, true)
+            );
+        handle->truncate(size);
+        return handle;
     }
 
     ~SharedFileHandle()

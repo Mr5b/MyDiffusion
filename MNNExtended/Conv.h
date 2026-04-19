@@ -5,8 +5,11 @@
 #include <MNN/expr/Module.hpp>
 #include "MyModule.h"
 
-namespace DonNotNowHowToNameIt
+namespace DonNotKnowHowToNameIt
 {
+
+using namespace MNN::Express;
+
 template <size_t D>
 std::array<int, D> make_filled_array(int value)
 {
@@ -148,12 +151,22 @@ public:
     
     virtual std::vector<MNN::Express::VARP> onForward(const std::vector<MNN::Express::VARP>& inputs) override
     {
-        weight_.fix(VARP::TRAINABLE);
-        bias_.fix(VARP::TRAINABLE);
+        //weight_.fix(VARP::TRAINABLE);
+        //if (bias_.get()) bias_.fix(VARP::TRAINABLE);
     
         auto x = inputs[0];
         MY_ASSERT(x->getInfo()->dim.size() == 4, "");
-        MY_ASSERT(x->getTensor()->channel() == weight_->getTensor()->channel() * options_.groups_, "");
+        MY_ASSERT
+        (
+            x->getTensor()->channel() == weight_->getTensor()->channel() * options_.groups_,
+            std::string
+            (
+                "x->getTensor()->channel(): "
+                 + std::to_string(x->getTensor()->channel())
+                 + " weight_->getTensor()->channel() * options_.groups_: "
+                 + std::to_string(weight_->getTensor()->channel() * options_.groups_)
+            ).c_str()
+        );
         
         x =
             _Conv

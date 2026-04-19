@@ -62,8 +62,8 @@ public:
             return {normalized};
         }
         
-        weight_.fix(VARP::TRAINABLE);
-        bias_.fix(VARP::TRAINABLE);
+        /*weight_.fix(VARP::TRAINABLE);
+        bias_.fix(VARP::TRAINABLE);*/
             
         VARP out = _BiasAdd((normalized * weight_), bias_);
         return {out};

@@ -1,10 +1,21 @@
 #include "autoencoder.h"
 #include "/storage/emulated/0/TEST/stb/ImageLoader.h"
+
+using namespace DonNotKnowHowToNameIt;
+using namespace MNN::Express;
+using namespace MyLDM;
+
 int main()
 {
-    using namespace DonNotKnowHowToNameIt;
-    using namespace MNN::Express;
-    using namespace MyLDM;
+    /*const char* cl_paths[] = {"/data/data/com.termux/files/usr/opt/vendor/lib/libOpenCL.so"};
+    MNNSetCustomOpenCLLibraryPaths(cl_paths, 1);*/
+    auto executor = Executor::getGlobalExecutor();
+    MNN::BackendConfig backendConfig;
+    backendConfig.precision = MNN::BackendConfig::Precision_Low;
+    //backendConfig.flags = MNN_GPU_TUNING_NONE;
+    executor->setGlobalExecutorConfig(MNN_FORWARD_CPU_EXTENSION, backendConfig, 8);
+
+    
     
     int in_channels = 3;
     int batch_size = 2;
@@ -52,7 +63,7 @@ int main()
         ch_mult
     );
     
-    SafetensorLoader loader("/storage/emulated/0/Download/Browser/v1-5-pruned-emaonly.safetensors");
+    SafetensorLoader loader("/storage/emulated/0/Download/Browser/Counterfeit-V2.5.safetensors");
     model.load_from_safetensors(loader, "first_stage_model.");
     
     /*VARP input = _LinSpace(_Scalar(0.0f), _Scalar(1.0f), _Scalar(int(batch_size*in_channels*height*width)));
@@ -66,7 +77,7 @@ int main()
     */
     
     
-    VARP img = MyTensor::Core::load_from_image("/storage/emulated/0/TEST/stb/test.jpg");
+    VARP img = MyTensor::Core::load_from_image("/storage/emulated/0/TEST/test_output/result15.png");
     img = _Permute(img, {0, 3, 1, 2});
     img.fix(VARP::InputType::INPUT);
     img.setOrder(MNN::Express::Dimensionformat::NCHW);
@@ -136,7 +147,7 @@ int main()
     int stride_bytes = rdim[2]*rdim[3]*sizeof(uint8_t);
     for (auto d : rdim) std::cout << d << " ";
     std::cout << std::endl;
-    if (stbi_write_png("/storage/emulated/0/TEST/MyLDM/models/result.png", rdim[2], rdim[1], rdim[3], result, stride_bytes) == 0) throw std::runtime_error("保存失败");
+    if (stbi_write_png("/storage/emulated/0/MyDiffusion/MyDiffusion/MyLDM/models/result.png", rdim[2], rdim[1], rdim[3], result, stride_bytes) == 0) throw std::runtime_error("保存失败");
     
     //if (stbi_write_png("/storage/emulated/0/TEST/stb/test_save.png", shape[2], shape[1], shape[3], ptr0, stride_bytes) == 0) throw std::runtime_error("保存失败");
     

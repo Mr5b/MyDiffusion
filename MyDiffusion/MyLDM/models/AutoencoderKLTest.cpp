@@ -6,7 +6,7 @@ int main()
     using namespace MyLDM;
     
     int in_channels = 3;
-    int batch_size = 2;
+    int batch_size = 1;
     int height = 64;
     int width = 64;
     
@@ -62,10 +62,9 @@ int main()
     
     
     input = _Reshape(input, {batch_size, in_channels, height, width}, MNN::Express::Dimensionformat::NCHW);
-    
+    input->setName("test_input");
     VARP output = model.forward(input, false).first;
-    
-    
+    output->setName("test_output");
     
     //pppp(output);
     
@@ -74,6 +73,9 @@ int main()
     {
         std::cout << rptr[i] << " ";
     }
+    
+    Variable::save({output}, "/storage/emulated/0/MyDiffusion/MyDiffusion/MyLDM/models/v1-5-pruned-emaonly_first_stage_model_test.mnn");
+    
     //std::cout << std::endl;
     print_shape(output);
     

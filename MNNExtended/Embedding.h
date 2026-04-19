@@ -25,7 +25,7 @@ public:
     
     virtual std::vector<MNN::Express::VARP> onForward(const std::vector<MNN::Express::VARP>& inputs) override
     {
-        weight_.fix(VARP::CONSTANT);
+        //weight_.fix(VARP::CONSTANT);
         VARP indices = inputs[0];
 
         VARP output = _Gather(weight_, indices);

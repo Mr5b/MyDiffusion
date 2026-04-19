@@ -29,6 +29,7 @@ using namespace MNN::Express;
 using namespace MyTensor::Utils;
 using namespace MyTensor::Utils::safetensors;
 
+
 inline halide_type_t stringToHalideType(const std::string& dtype)
 {
     if (dtype == "F32" || dtype == "Float32")
@@ -199,9 +200,10 @@ public:
         info.order = format;
         info.type = tensor_dtype;
         
+        int expected_numel = 1;
         if (!expected_shape.empty())
         {
-            int expected_numel = 1;
+            
             for (auto dim : expected_shape) expected_numel *= dim;
             if (expected_numel != numel) throw std::runtime_error("Shape mismatch: " + key);
             
@@ -250,6 +252,37 @@ public:
         std::shared_ptr<MyTensor::Utils::FileMapping> mapping_ =
             std::make_unique<FileMapping>(handle_, tensor_start, tensor_size, false);
         
+        if (info.type == halide_type_t(halide_type_float, 16))
+        {
+            info.type = halide_type_t(halide_type_float, 32);
+            
+            auto old_ptr = reinterpret_cast<MyTensor::Utils::Float16*>(mapping_->data());
+            /*auto temp_handle = GlobalTemporaryFiles::get_handle();
+            size_t start = temp_handle->size();
+            temp_handle->truncate(start + tensor_size);
+            auto temp_mapping = GlobalTemporaryFiles::get_mapping();
+            float* start_ptr = (float*)((char*)(temp_mapping->data()) + start);*/
+            
+            //std::vector<float> data(expected_numel);
+            std::string file_path = "TemporaryFile/" + key + "_TemporaryFile";
+            std::shared_ptr<FileMapping> mapping =
+                std::make_shared<TemporaryFileMapping>(file_path, expected_numel*sizeof(float));
+                
+            float* temp_ptr = reinterpret_cast<float*>(mapping->data());
+                
+            for (int i = 0; i < expected_numel; i++)
+            {
+                temp_ptr[i] = static_cast<float>(old_ptr[i]);
+            }
+            //std::cout << "float16" << std::endl;    
+            //return Expr::create(std::move(info), data_ptr, VARP::CONSTANT, Expr::MemoryType::REF);
+            return
+                std::make_pair
+                (
+                    Expr::create(std::move(info), temp_ptr, VARP::CONSTANT, Expr::MemoryType::COPY),
+                    nullptr
+                );
+        }
         
         return
             std::make_pair
