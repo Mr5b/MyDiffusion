@@ -1,14 +1,26 @@
 #include "openaimodel.h"
+
+extern "C" void MNNSetCustomOpenCLLibraryPaths(const char** paths, int count);
+
 int main()
 {
     using namespace DonNotKnowHowToNameIt;
     using namespace MNN::Express;
     using namespace MyLDM;
     
+    const char* cl_paths[] = {"/data/data/com.termux/files/usr/opt/vendor/lib/libOpenCL.so"};
+    MNNSetCustomOpenCLLibraryPaths(cl_paths, 1);
+    auto executor = Executor::getGlobalExecutor();
+    MNN::BackendConfig backendConfig;
+    backendConfig.precision = MNN::BackendConfig::Precision_Low;
+    backendConfig.memory = MNN::BackendConfig::Memory_Low;
+    executor->setGlobalExecutorConfig(MNN_FORWARD_CPU_EXTENSION, backendConfig, 8);
+    
+    
     int in_channels = 4;
     int batch_size = 1;
-    int height = 8;
-    int width = 8;
+    int height = 64;
+    int width = 64;
     
     int sequence_length = 77;
     
@@ -51,11 +63,11 @@ int main()
     SafetensorLoader loader("/storage/emulated/0/Download/Browser/v1-5-pruned-emaonly.safetensors");
     model.load_from_safetensors(loader, "model.diffusion_model.");
     
-    VARP input = _LinSpace(_Scalar(0.0f), _Scalar(1.0f), _Scalar(int(batch_size*in_channels*height*width)));
-    VARP timesteps = _LinSpace(_Scalar<int>(0), _Scalar<int>(2), _Scalar(int(batch_size)));
+    VARP input = _LinSpace(_Scalar<float>(0.0f), _Scalar<float>(1.0f), _Scalar(int(batch_size*in_channels*height*width)));
+    VARP timesteps = _LinSpace(_Scalar<float>(0), _Scalar<float>(2), _Scalar(int(batch_size)));
     VARP context = _LinSpace(_Scalar<float>(0), _Scalar<float>(2), _Scalar(int(batch_size*sequence_length*context_dim)));
  
-    
+    timesteps = _Cast<int>(timesteps);
     
     input.fix(VARP::InputType::INPUT);
     

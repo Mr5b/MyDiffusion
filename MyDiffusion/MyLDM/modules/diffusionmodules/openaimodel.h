@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <MyModules.h>
+#include <MNN/expr/ExecutorScope.hpp>
 #include "../attention.h"
 #include "util.h"
 #include <variant>
@@ -659,6 +660,91 @@ struct UNetModel : public IDK::MyModule
         return {this->out_->forward(h)};
     }
 };
+
+
+struct UNetModelLow : public UNetModel
+{
+    UNetModelLow
+    (
+        int in_channels,
+        int model_channels,
+        int out_channels,
+        int num_res_blocks,
+        int num_heads = -1,
+        int transformer_depth = 1,
+        int context_dim = -1,
+        std::vector<int> attention_resolutions = {},
+        std::vector<int> channel_mult = {1, 2, 4, 8},
+        halide_type_t dtype = halide_type_of<float>()
+    ) :
+        UNetModel
+        (
+            in_channels,
+            model_channels,
+            out_channels,
+            num_res_blocks,
+            num_heads,
+            transformer_depth,
+            context_dim,
+            std::move(attention_resolutions),
+            std::move(channel_mult),
+            dtype
+        )
+    {}
+    
+    
+    virtual std::vector<VARP> onForward(const std::vector<VARP>& inputs) override
+    {
+        VARP x = inputs[0];
+        VARP timesteps = inputs[1];
+        VARP context =
+            (inputs.size() >= 3 && inputs[2].get())
+            ? inputs[2]
+            : nullptr;
+        
+        VARPS hs = {};
+        VARP t_emb = timestep_embedding(timesteps, this->model_channels_, 10000, false);
+        VARP emb = this->time_embed_->forward(t_emb);
+        
+        halide_type_t x_dtype = x->getInfo()->type;
+        
+        VARP h =
+            x_dtype == dtype_
+            ? x
+            : _Cast(x, dtype_);
+        
+        for (auto module : *(this->input_blocks_))
+        {
+            h = module->onForward({h, emb, context})[0];IDK::print_shape(h);
+            auto h_info = h->getInfo();
+            hs.emplace_back(_Const(h->readMap<float>(), h_info->dim, h_info->order, h_info->type));
+        }
+
+        MNN::BackendConfig backendConfig;
+        backendConfig.precision = MNN::BackendConfig::Precision_Low;
+        backendConfig.memory = MNN::BackendConfig::Memory_Low;
+        Executor::getGlobalExecutor()->setGlobalExecutorConfig(MNN_FORWARD_CPU_EXTENSION, backendConfig, 8);
+        
+        h = this->middle_block_->onForward({h, emb, context})[0];
+        
+        for (auto module : *(this->output_blocks_))
+        {
+            h = _Concat({h, hs.back()}, 1);
+            hs.pop_back();
+            h = module->onForward({h, emb, context})[0];
+        }
+        h.fix(VARP::InputType::CONSTANT);
+        Executor::getGlobalExecutor()->setGlobalExecutorConfig(MNN_FORWARD_OPENCL, backendConfig, 1);
+        
+        h =
+            x_dtype == dtype_
+            ? h
+            : _Cast(h, x_dtype);
+            
+        return {this->out_->forward(h)};
+    }
+};
+
 
 }//namespace OpenaiModel
 }//namespace MyLDM
