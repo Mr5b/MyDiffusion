@@ -10,10 +10,23 @@ namespace MyLDM
 {
 using namespace MNN::Express;
 
+
+struct UNetWrapper : public DonNotKnowHowToNameIt::MyModule
+{
+};
+
+struct AutoencoderWrapper : public DonNotKnowHowToNameIt::MyModule
+{
+
+    virtual VARP encode(VARP x){ return nullptr; }
+    virtual VARP decode(VARP x) = 0;
+    
+};
+
 struct DDIMSampler : public DonNotKnowHowToNameIt::MyModule
 {
-    std::shared_ptr<AutoencoderKL> first_stage_model_;
-    std::shared_ptr<Module> model_;
+    std::shared_ptr<AutoencoderWrapper> first_stage_model_;
+    std::shared_ptr<UNetWrapper> model_;
 
     float scale_factor_ = 0.18215f;
     int num_timesteps_ = 1000;
@@ -23,14 +36,14 @@ struct DDIMSampler : public DonNotKnowHowToNameIt::MyModule
 
     DDIMSampler
     (
-        std::shared_ptr<AutoencoderKL> vae,
-        std::shared_ptr<Module> unet,
+        std::shared_ptr<AutoencoderWrapper> ae,
+        std::shared_ptr<UNetWrapper> unet,
         float scale_factor = 0.18215f,
         int num_timesteps = 1000,
         float linear_start = 0.00085f,
         float linear_end = 0.0120f
     ) :
-        first_stage_model_(vae), model_(unet),
+        first_stage_model_(ae), model_(unet),
         scale_factor_(scale_factor), num_timesteps_(num_timesteps)
     {
         register_module("first_stage_model", first_stage_model_);
@@ -590,6 +603,155 @@ struct DDIMSampler : public DonNotKnowHowToNameIt::MyModule
         VARP dir_xt = _Sqrt(_Scalar<float>(1.0f) - alpha_cumprod_prev_var - sigma_t_var * sigma_t_var) * pred_noise;
         VARP x_prev = _Sqrt(alpha_cumprod_prev_var) * x0_pred + dir_xt + sigma_t_var * noise;
         return x_prev;
+    }
+};
+
+
+struct MyAutoencoder : public AutoencoderWrapper
+{
+    std::shared_ptr<AutoencoderKL> ae_;
+    
+    MyAutoencoder
+    (
+        int embed_dim,
+        int z_channels,
+        int ch,
+        int in_channels,
+        int num_res_blocks,
+        int resolution,
+        std::vector<int> attn_resolutions,
+        bool tanh_out,
+        bool resamp_with_conv = true,
+        std::vector<int> ch_mult = {1, 2, 4, 4},
+        std::string attn_type = "vanilla",
+        halide_type_t dtype = halide_type_of<float>()
+    ) :
+        ae_
+        (
+            std::make_shared<AutoencoderKL>
+            (
+                embed_dim,
+                z_channels,
+                ch,
+                in_channels,
+                num_res_blocks,
+                resolution,
+                std::move(attn_resolutions),
+                tanh_out,
+                resamp_with_conv,
+                std::move(ch_mult),
+                attn_type,
+                dtype
+            )
+        )
+    {}
+    
+    VARP encode(VARP x) override
+    {
+        return ae_->encode(x).mode();
+    }
+    
+    VARP decode(VARP x) override
+    {
+        return ae_->decode(x);
+    }
+    
+    virtual void load_from_safetensors
+    (
+        const SafetensorLoader& loader,
+        const std::string& prefix = "",
+        SafetensorLoader::ShapeMode shape_mode = SafetensorLoader::ShapeMode::LOOSE,
+        DtypePolicy dtype_policy = DtypePolicy::AS_FILE,
+        bool allow_missing_tensors = false
+    ) override
+    {
+        ae_->load_from_safetensors
+        (
+            loader,
+            prefix,
+            shape_mode,
+            dtype_policy,
+            allow_missing_tensors
+        );
+    }
+    
+    virtual void get_parameters_recursive
+    (
+        std::unordered_map<std::string, MNN::Express::VARP>& map,
+        const std::string& prefix = ""
+    ) override
+    {
+        return ae_->get_parameters_recursive(map, prefix);
+    }
+};
+
+struct MyUNetModel : public UNetWrapper
+{
+    std::shared_ptr<OpenaiModel::UNetModel> unet_;
+    
+    MyUNetModel
+    (
+        int in_channels,
+        int model_channels,
+        int out_channels,
+        int num_res_blocks,
+        int num_heads = -1,
+        int transformer_depth = 1,
+        int context_dim = -1,
+        std::vector<int> attention_resolutions = {},
+        std::vector<int> channel_mult = {1, 2, 4, 8},
+        halide_type_t dtype = halide_type_of<float>()
+    ) :
+        unet_
+        (
+            std::make_shared<OpenaiModel::UNetModel>
+            (
+                in_channels,
+                model_channels,
+                out_channels,
+                num_res_blocks,
+                num_heads,
+                transformer_depth,
+                context_dim,
+                std::move(attention_resolutions),
+                std::move(channel_mult),
+                dtype
+            )
+        )
+    {}
+    
+    
+    virtual std::vector<VARP> onForward(const std::vector<VARP>& inputs) override
+    {
+        return unet_->onForward(inputs);
+    }
+    
+    virtual void load_from_safetensors
+    (
+        const SafetensorLoader& loader,
+        const std::string& prefix = "",
+        SafetensorLoader::ShapeMode shape_mode = SafetensorLoader::ShapeMode::LOOSE,
+        DtypePolicy dtype_policy = DtypePolicy::AS_FILE,
+        bool allow_missing_tensors = false
+    ) override
+    {
+        unet_->load_from_safetensors
+        (
+            loader,
+            prefix,
+            shape_mode,
+            dtype_policy,
+            allow_missing_tensors
+        );
+    }
+    
+    virtual void get_parameters_recursive
+    (
+        std::unordered_map<std::string, MNN::Express::VARP>& map,
+        const std::string& prefix = ""
+    ) override
+    {
+        return unet_->get_parameters_recursive(map, prefix);
     }
 };
 

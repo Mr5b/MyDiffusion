@@ -85,7 +85,7 @@ int main()
     bool double_z = true;
     
     auto vae =
-    std::make_shared<AutoencoderKL>
+    std::make_shared<MyAutoencoder>
     (
         embed_dim,
         z_channels,
@@ -116,7 +116,7 @@ int main()
         halide_type_t dtype = halide_type_of<float>()
     )*/
     auto unet =
-    std::make_shared<MyLDM::OpenaiModel::UNetModel>
+    std::make_shared<MyUNetModel>
     (
         embed_dim,
         model_channels,
@@ -162,7 +162,7 @@ int main()
     VARP weights = _Const(pos_weights_vec.data(), {2, maxlen, 1}, NCHW, halide_type_of<float>());
     
     
-    std::string text_encoder_model_path = "/storage/emulated/0/text_encoder_mnn/text_encoder_mnn/text_encoder.mnn";
+    std::string text_encoder_model_path = "/storage/emulated/0/sd_mnn/text_encoder/text_encoder.mnn";
     
     std::shared_ptr<Module> text_encoder;
     text_encoder.reset
@@ -209,7 +209,7 @@ int main()
     
     mask = _Concat({mask, mask, mask}, 1);
     
-    VARP latent = model.first_stage_model_->encode(img).mode();
+    VARP latent = model.first_stage_model_->encode(img);
     
     print_shape(img);
        

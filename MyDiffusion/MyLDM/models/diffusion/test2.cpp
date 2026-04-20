@@ -42,21 +42,21 @@ int main()
     bool double_z = true;
     
     auto vae =
-    std::make_shared<AutoencoderKL>
-    (
-        embed_dim,
-        z_channels,
-        ch,
-        in_channels,
-        num_res_blocks,
-        resolution,
-        std::vector<int>{},
-        tanh_out,
-        true,
-        ch_mult,
-        "vanilla",
-        halide_type_of<float>()
-    );
+        std::make_shared<MyAutoencoder>
+        (
+            embed_dim,
+            z_channels,
+            ch,
+            in_channels,
+            num_res_blocks,
+            resolution,
+            std::vector<int>{},
+            tanh_out,
+            true,
+            ch_mult,
+            "vanilla",
+            halide_type_of<float>()
+        );
     /*AutoencoderKL
     (
         int embed_dim,
@@ -73,18 +73,18 @@ int main()
         halide_type_t dtype = halide_type_of<float>()
     )*/
     auto unet =
-    std::make_shared<MyLDM::OpenaiModel::UNetModel>
-    (
-        embed_dim,
-        model_channels,
-        unet_out_channels,
-        num_res_blocks,
-        num_heads,
-        transformer_depth,
-        context_dim,
-        attention_resolutions,
-        channel_mult
-    );
+        std::make_shared<MyUNetModel>
+        (
+            embed_dim,
+            model_channels,
+            unet_out_channels,
+            num_res_blocks,
+            num_heads,
+            transformer_depth,
+            context_dim,
+            attention_resolutions,
+            channel_mult
+        );
     
     SafetensorLoader loader("/storage/emulated/0/Download/Browser/anything-v5-PrtRE_f32.safetensors");
     SafetensorLoader lora_loader("/storage/emulated/0/test.safetensors");
@@ -119,7 +119,7 @@ int main()
     VARP weights = _Const(pos_weights_vec.data(), {2, maxlen, 1}, NCHW, halide_type_of<float>());
     
     
-    std::string text_encoder_model_path = "/storage/emulated/0/text_encoder_mnn/text_encoder_mnn/text_encoder.mnn";
+    std::string text_encoder_model_path = "/storage/emulated/0/sd_mnn/text_encoder/text_encoder.mnn";
     
     std::shared_ptr<Module> text_encoder;
     text_encoder.reset
@@ -147,7 +147,7 @@ int main()
     
     VARP x = _RandomNormal({1, 4, 64, 64}, halide_type_of<float>(), 0.0f, 1.0f, 404, 06);
     
-    VARP output = model.sample(x, context, 7.5f, 25, 0.0f);
+    VARP output = model.sample(x, context, 7.5f, 5, 0.0f);
     
     output.fix(VARP::CONSTANT);
     
