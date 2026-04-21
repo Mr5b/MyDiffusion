@@ -339,6 +339,132 @@ struct DDIMSampler : public DonNotKnowHowToNameIt::MyModule
     }
     
     
+    MNN::Express::VARP sample_low
+    (
+        VARP x,
+        MNN::Express::VARP emb_combined,
+        float guidance_scale,
+        int steps,
+        float eta
+    )
+    {
+        using namespace MNN::Express;
+        
+        auto x_info = x->getInfo();
+        const MNN::Express::INTS& latent_shape = x_info->dim;
+        int batch = latent_shape[0];
+    
+        MY_ASSERT
+        (
+            emb_combined->getInfo()->dim.size() == 3 &&
+            emb_combined->getInfo()->dim[0] == 2*batch,
+            "emb shape error"
+        );
+        
+        //VARP x = _RandomNormal(latent_shape, halide_type_of<float>(), 0.0f, 1.0f);
+
+        
+        std::vector<int> timesteps;
+        int step_interval = num_timesteps_ / steps;
+        for (int i = steps; i >= 1; i--)
+        {
+            timesteps.push_back(i * step_interval - 1);
+        }
+        timesteps.push_back(0);
+
+        
+        
+        bool use_cfg = (guidance_scale > 1.0f);
+        
+        VARP positive_emb =
+            _Slice
+            (
+                emb_combined,
+                _Const
+                (
+                    std::vector<int>({batch, 0, 0}).data(),
+                    {3}, NCHW, halide_type_of<int>()
+                ),
+                _Const
+                (
+                    std::vector<int>({batch, -1, -1}).data(),
+                    {3}, NCHW, halide_type_of<int>()
+                )
+            );
+        //positive_emb.fix(VARP::InputType::CONSTANT);
+        
+        VARP negative_emb =
+            _Slice
+            (
+                emb_combined,
+                _Const
+                (
+                    std::vector<int>({0, 0, 0}).data(),
+                    {3}, NCHW, halide_type_of<int>()
+                ),
+                _Const
+                (
+                    std::vector<int>({batch, -1, -1}).data(),
+                    {3}, NCHW, halide_type_of<int>()
+                )
+            );
+        //negative_emb.fix(VARP::InputType::CONSTANT);
+        
+        std::cout << (use_cfg ? std::string("CFG") : std::string("CFG关闭")) << std::endl;
+
+        if (use_cfg)
+        {
+            VARP guidance_scale_var = _Scalar<float>(guidance_scale);
+            for (size_t idx = 0; idx < timesteps.size() - 1; idx++)
+            {
+                int t = timesteps[idx];
+                int prev_t = timesteps[idx + 1];
+
+                VARP t_batch = _Const(static_cast<float>(t), {batch}, NCHW);
+                t_batch = _Cast<int32_t>(t_batch);
+                
+                //x.fix(VARP::InputType::CONSTANT);
+                
+                VARP noise_uncond = model_->onForward({x, t_batch, negative_emb})[0];
+                //noise_uncond.fix(VARP::InputType::CONSTANT);
+                
+                VARP noise_cond = model_->onForward({x, t_batch, positive_emb})[0];
+                //noise_cond.fix(VARP::InputType::CONSTANT);
+                
+                VARP pred_noise = noise_uncond + guidance_scale_var * (noise_cond - noise_uncond);
+                
+                
+                x = ddim_step(x, pred_noise, t, prev_t, eta);
+                //x.fix(VARP::InputType::CONSTANT);
+                //std::cout << "step" << std::endl;
+            }
+        }
+        else
+        {
+            for (size_t idx = 0; idx < timesteps.size() - 1; idx++)
+            {
+                int t = timesteps[idx];
+                int prev_t = timesteps[idx + 1];
+                
+                VARP t_batch = _Const(static_cast<float>(t), {batch}, NCHW);
+                t_batch = _Cast<int32_t>(t_batch);
+                
+                VARP pred_noise = model_->onForward({x, t_batch, positive_emb})[0];
+                //pred_noise.fix(VARP::InputType::CONSTANT);
+                
+                x = ddim_step(x, pred_noise, t, prev_t, eta);
+                //x.fix(VARP::InputType::CONSTANT);
+            }
+        }
+
+            
+        
+        VARP z = x * _Scalar<float>(1.0f / scale_factor_);
+        //VARP image = first_stage_model_->decode(z);
+        return z;
+    }
+    
+    
     MNN::Express::VARP sample
     (
         VARP x,
