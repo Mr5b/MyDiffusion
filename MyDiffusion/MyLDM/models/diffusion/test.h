@@ -2,9 +2,9 @@
 #define MYLDM_SAMPLER_H
 
 #include "../autoencoder.h"
-#include "/storage/emulated/0/MyDiffusion/MyDiffusion/MyLDM/modules/diffusionmodules/openaimodel.h"
+#include <modules/diffusionmodules/openaimodel.h>
 #include <cmath>
-#include "/storage/emulated/0/TEST/stb/ImageLoader.h"
+#include <stb/ImageLoader.h>
 
 namespace MyLDM
 {
@@ -454,6 +454,9 @@ struct DDIMSampler : public DonNotKnowHowToNameIt::MyModule
                 
                 x = ddim_step(x, pred_noise, t, prev_t, eta);
                 //x.fix(VARP::InputType::CONSTANT);
+                x->readMap<float>();
+                x->unMap();
+                std::cout << "step" << std::endl;
             }
         }
 
