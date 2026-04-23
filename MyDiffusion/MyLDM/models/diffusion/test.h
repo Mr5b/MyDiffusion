@@ -391,7 +391,7 @@ struct DDIMSampler : public DonNotKnowHowToNameIt::MyModule
                     {3}, NCHW, halide_type_of<int>()
                 )
             );
-        //positive_emb.fix(VARP::InputType::CONSTANT);
+        
         
         VARP negative_emb =
             _Slice
@@ -408,56 +408,45 @@ struct DDIMSampler : public DonNotKnowHowToNameIt::MyModule
                     {3}, NCHW, halide_type_of<int>()
                 )
             );
-        //negative_emb.fix(VARP::InputType::CONSTANT);
+        
+        positive_emb.fix(VARP::InputType::CONSTANT);
+        negative_emb.fix(VARP::InputType::CONSTANT);
         
         std::cout << (use_cfg ? std::string("CFG") : std::string("CFG关闭")) << std::endl;
-
+        
+        VARP t_batch = _Input({batch}, NCHW, halide_type_of<int32_t>());
+        
+        VARP pred_noise;
+        
+        VARP input = _Input(x_info->dim, NCHW, halide_type_of<float>());
+            
         if (use_cfg)
         {
             VARP guidance_scale_var = _Scalar<float>(guidance_scale);
-            for (size_t idx = 0; idx < timesteps.size() - 1; idx++)
-            {
-                int t = timesteps[idx];
-                int prev_t = timesteps[idx + 1];
-
-                VARP t_batch = _Const(static_cast<float>(t), {batch}, NCHW);
-                t_batch = _Cast<int32_t>(t_batch);
-                
-                //x.fix(VARP::InputType::CONSTANT);
-                
-                VARP noise_uncond = model_->onForward({x, t_batch, negative_emb})[0];
-                //noise_uncond.fix(VARP::InputType::CONSTANT);
-                
-                VARP noise_cond = model_->onForward({x, t_batch, positive_emb})[0];
-                //noise_cond.fix(VARP::InputType::CONSTANT);
-                
-                VARP pred_noise = noise_uncond + guidance_scale_var * (noise_cond - noise_uncond);
-                
-                
-                x = ddim_step(x, pred_noise, t, prev_t, eta);
-                //x.fix(VARP::InputType::CONSTANT);
-                //std::cout << "step" << std::endl;
-            }
+            
+            VARP noise_uncond = model_->onForward({input, t_batch, negative_emb})[0];
+            VARP noise_cond = model_->onForward({input, t_batch, positive_emb})[0];
+            pred_noise = noise_uncond + guidance_scale_var * (noise_cond - noise_uncond);
         }
         else
         {
-            for (size_t idx = 0; idx < timesteps.size() - 1; idx++)
-            {
-                int t = timesteps[idx];
-                int prev_t = timesteps[idx + 1];
+            pred_noise = model_->onForward({x, t_batch, positive_emb})[0];
+        }
+            
+        for (size_t idx = 0; idx < timesteps.size() - 1; idx++)
+        {
+            int t = timesteps[idx];
+            int prev_t = timesteps[idx + 1];
                 
-                VARP t_batch = _Const(static_cast<float>(t), {batch}, NCHW);
-                t_batch = _Cast<int32_t>(t_batch);
+            std::memcpy((void*)(input->writeMap<float>()), x->readMap<float>(), x_info->size * x_info->type.bits / 8);
                 
-                VARP pred_noise = model_->onForward({x, t_batch, positive_emb})[0];
-                //pred_noise.fix(VARP::InputType::CONSTANT);
+            std::memset((void*)(t_batch->writeMap<int32_t>()), t, sizeof(int)*t_batch->getInfo()->size);
+            
+            //pred_noise->readMap<float>();
+            pppp(pred_noise);
                 
-                x = ddim_step(x, pred_noise, t, prev_t, eta);
-                //x.fix(VARP::InputType::CONSTANT);
-                x->readMap<float>();
-                x->unMap();
-                std::cout << "step" << std::endl;
-            }
+            x = ddim_step(input, pred_noise, t, prev_t, eta);
+            std::cout << "step" << std::endl;
         }
 
             
@@ -834,6 +823,76 @@ struct MyUNetModel : public UNetWrapper
         unet_
         (
             std::make_shared<OpenaiModel::UNetModel>
+            (
+                in_channels,
+                model_channels,
+                out_channels,
+                num_res_blocks,
+                num_heads,
+                transformer_depth,
+                context_dim,
+                std::move(attention_resolutions),
+                std::move(channel_mult),
+                dtype
+            )
+        )
+    {}
+    
+    
+    virtual std::vector<VARP> onForward(const std::vector<VARP>& inputs) override
+    {
+        return unet_->onForward(inputs);
+    }
+    
+    virtual void load_from_safetensors
+    (
+        const SafetensorLoader& loader,
+        const std::string& prefix = "",
+        SafetensorLoader::ShapeMode shape_mode = SafetensorLoader::ShapeMode::LOOSE,
+        DtypePolicy dtype_policy = DtypePolicy::AS_FILE,
+        bool allow_missing_tensors = false
+    ) override
+    {
+        unet_->load_from_safetensors
+        (
+            loader,
+            prefix,
+            shape_mode,
+            dtype_policy,
+            allow_missing_tensors
+        );
+    }
+    
+    virtual void get_parameters_recursive
+    (
+        std::unordered_map<std::string, MNN::Express::VARP>& map,
+        const std::string& prefix = ""
+    ) override
+    {
+        return unet_->get_parameters_recursive(map, prefix);
+    }
+};
+
+struct MyUNetModelLow : public UNetWrapper
+{
+    std::shared_ptr<OpenaiModel::UNetModelLow> unet_;
+    
+    MyUNetModelLow
+    (
+        int in_channels,
+        int model_channels,
+        int out_channels,
+        int num_res_blocks,
+        int num_heads = -1,
+        int transformer_depth = 1,
+        int context_dim = -1,
+        std::vector<int> attention_resolutions = {},
+        std::vector<int> channel_mult = {1, 2, 4, 8},
+        halide_type_t dtype = halide_type_of<float>()
+    ) :
+        unet_
+        (
+            std::make_shared<OpenaiModel::UNetModelLow>
             (
                 in_channels,
                 model_channels,
